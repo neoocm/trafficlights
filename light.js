@@ -28,15 +28,18 @@ class Light{
 	,	PEDESTRIAN: 'pedestrian'
 	};
 
-	constructor(board, address, color, icon, failRate)
+	static DEMORAPROPAGACION = 100;
+	static MAXDEMORAFALLO = 2000;
+
+	constructor(parent, address, color, icon, failRate)
 	{
-		if(!Array.isArray(board))
+		if(parent != null && !Array.isArray(parent.board))
 		{
 			throw `Please use an array as the board parameter for the light`;
 		}
-		if(address === null || typeof address != 'number' || address<0 || address >= board.length)
+		if(address === null || typeof address != 'number' || address<0 || address >= parent.board.length)
 		{
-			throw `Invalid address ${address} for light for a board of size `+board.length;
+			throw `Invalid address ${address} for light for a board of size `+parent.board.length;
 		}
 		if(color === null || !Object.values(this.constructor.Colors).includes(color))
 		{
@@ -53,8 +56,8 @@ class Light{
 
 		this.color = color;
 		this.icon = icon;
-		this.board = board;
 		this.address = address;
+		this.parent = parent;
 		this.failRate = failRate;
 		this.currentSensor = 0;
 		this.sensorInterval = null;
@@ -76,7 +79,7 @@ class Light{
 
 	relayTurnedOn()
 	{
-		return this.board[this.address] === 1;
+		return this.parent.board[this.address] === 1;
 	}
 
 	hasCurrent()
@@ -87,14 +90,16 @@ class Light{
 
 	on(millis)
 	{
-		this.board[this.address] = 1;
-		this.currentSensor = 1;
-		if(Math.random() < this.failRate)
-		{
-			this.failTimeout = setTimeout(()=>{
-				this.currentSensor = 0;
-			}, Math.random()*2000);
-		}
+		this.parent.board[this.address] = 1;
+		setTimeout(()=>{
+			this.currentSensor = 1;
+			if(Math.random() < this.failRate)
+			{
+				this.failTimeout = setTimeout(()=>{
+					this.currentSensor = 0;
+				}, Math.random()*this.constructor.MAXDEMORAFALLO);
+			}
+		}, this.constructor.DEMORAPROPAGACION);
 		if(millis)
 		{
 			if(!!this.offTimeout)
@@ -113,6 +118,11 @@ class Light{
 			if(!this.hasCurrent())
 			{
 				this.failing = true;
+				if(this.parent.areAllFailing())
+				{
+					console.log('All lights are failing, exiting...');
+					process.exit(1);
+				}
 				if(this.isBlinkingOn())
 				{
 					console.log(`Current not detected for light at ${this.address} (not failing, already failed)`);
@@ -166,7 +176,7 @@ class Light{
 
 	off()
 	{
-		this.board[this.address] = 0;
+		this.parent.board[this.address] = 0;
 		this.currentSensor = 0;
 		if(this.offTimeout)
 		{
@@ -183,6 +193,11 @@ class Light{
 			clearTimeout(this.failTimeout);
 			this.failTimeout = null;
 		}
+	}
+
+	isFailing()
+	{
+		return this.failing;
 	}
 
 	toString()

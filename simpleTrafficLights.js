@@ -1,6 +1,7 @@
 const Light = require('./light.js');
 const Util = require('./util.js');
 const uuid = require('uuid');
+const P = require('./persistence.js');
 
 class SimpleTrafficLight{
 
@@ -10,18 +11,49 @@ class SimpleTrafficLight{
 		this.name = name;
 		this.board = new Array(3).fill(0);
 		let failRate = 0;
-		let redLight = new Light(this.board, 0, Light.Colors.RED, Light.Icons.DOT, failRate);
-		let yellowLight = new Light(this.board, 1, Light.Colors.YELLOW, Light.Icons.DOT, failRate);
-		let greenLight = new Light(this.board, 2, Light.Colors.GREEN, Light.Icons.DOT, failRate);
+		let redLight = new Light(this, 0, Light.Colors.RED, Light.Icons.DOT, failRate);
+		let yellowLight = new Light(this, 1, Light.Colors.YELLOW, Light.Icons.DOT, failRate);
+		let greenLight = new Light(this, 2, Light.Colors.GREEN, Light.Icons.DOT, failRate);
 
 		this.lights = [redLight, yellowLight, greenLight];
-		this.states = [[1,0,0],[0,1,0],[0,0,1]];
+		//States podria ser [Light.Icons.DOT, 0, 0] para ir cambiando tambien las formas
 		this.startingTime = 0;
+		this.states = [[1,0,0],[0,1,0],[0,0,1]];
 		this.baseTimes = [5000,1000,5000];
 		this.configTimes = null;
+
+		let saved = P.read(name);
+		if(saved)
+		{
+			saved.startingTime && (this.startingTime = saved.startingTime);
+			saved.states && (this.states = saved.states);
+			saved.baseTimes && (this.baseTimes = saved.baseTimes);
+			saved.configTimes && (this.configTimes = saved.configTimes);
+		}
+		else{
+			P.write(this.name, {
+				startingTime: this.startingTime,
+				states: this.states,
+				baseTimes: this.baseTimes,
+				configTimes: this.configTimes
+			});
+		}
+
 		this.currentPeriod = this.getPeriod();
 		this.currentState = null;
 		this.cycleTimeout = null;
+	}
+
+	areAllFailing()
+	{
+		for (let i = 0; i<this.lights.length; i++) {
+			let light = this.lights[i];
+			if(!light.isFailing())
+			{
+				return false;
+			}
+		}
+		return true;
 	}
 
 	getTimeConfig()
@@ -55,7 +87,7 @@ class SimpleTrafficLight{
 			console.error('The times param needs to be an array of same length as the number of states for this traffic light');
 			return null;
 		}
-		for (let i = 0; i<this.times.length; i++) {
+		for (let i = 0; i<times.length; i++) {
 			if(typeof times[i] != 'number')
 			{
 				console.error('The times param needs to be an array of integers only');
@@ -78,6 +110,13 @@ class SimpleTrafficLight{
 		}
 		this.currentPeriod = this.getPeriod();
 		this.startingTime = startingTime;
+		//Save the 4 variables
+		P.append(this.name, {
+			startingTime: this.startingTime,
+			states: this.states,
+			baseTimes: this.baseTimes,
+			configTimes: this.configTimes
+		});
 	}
 
 	async powerOnSelfTest()
@@ -132,7 +171,7 @@ class SimpleTrafficLight{
 			if(lightState == 1)
 			{
 				let now = new Date();
-				console.log(now,now.getMilliseconds(),this.name,i);
+				//console.log(now,now.getMilliseconds(),this.name,i);
 			}
 		}
 	}

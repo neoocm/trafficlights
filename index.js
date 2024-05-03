@@ -1,3 +1,5 @@
+const P = require('./persistence.js');
+const Util = require('./util.js');
 
 ///////////////// PARSE ARGUMENTS /////////////////////
 
@@ -29,15 +31,52 @@ function startServer(stl, port)
 {
 	app.post('/propose', (req, res) => {
 		
+		// write a 2 step consensus algorithm that will receive data to be saved in the traffic light and reply ok, then wait for the commit, if after 100000 seconds it does not receive the commit, die
 
-		// Check if majority accepted
-		if (state.proposals[proposalId].acceptedCount > semaphores.length / 2) {
-			state.agreedState = proposalData;
-			broadcastPhaseChange(proposalData);
-			res.send({ status: 'success', id: proposalId, result: 'Proposal accepted' });
-		} else {
-			res.send({ status: 'failure', id: proposalId, result: 'Proposal rejected' });
+		// 1. Parse the raw body of the request
+		let data = req.body;
+		if(!data)
+		{
+			res.status(400).send('No data received');
+			return;
 		}
+		console.log('Received data:');
+		console.log(data);
+
+		// 2. Reply OK
+		res.status(200).send('OK');
+
+		// save the data
+		P.append(stl.name, {proposed: data});
+
+		// 3. Wait for commit
+		if(stl.commitTimeout)
+		{
+			clearTimeout(stl.commitTimeout);
+		}
+		stl.commitTimeout = setTimeout(()=>{
+			// If no commit is received, failure
+			Util.raiseError({
+				light: stl
+			,	errorMessage: `No commit received after 100000 seconds`
+			});
+		}, 100000);
+	});
+
+	app.post('/commit', (req, res) => {
+		clearTimeout(stl.commitTimeout);
+		res.status(200).send('OK');
+		let data = P.read(stl.name);
+		if(data.proposed.times)
+		{
+			stl.setTimes(data.proposed.startingTime, data.proposed.times, false);
+		}
+		if(data.proposed.baseTimes)
+		{
+			stl.setTimes(data.proposed.startingTime, data.proposed.baseTimes, true);
+		}
+		delete data.proposed;
+		P.write(stl.name, data);
 	});
 
 	app.listen(port, () => {
@@ -66,7 +105,8 @@ process.on('uncaughtException', e=>{
 (async function() { 
 	await stl.powerOnSelfTest();
 	stl.doCycle();
-	//stl.drawLights();
+	//stl.blinkAll()
+	stl.drawLights();
 	//ntpSync();
 	//startHeartbeat();
 	startServer(stl, port);
