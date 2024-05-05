@@ -1,5 +1,4 @@
 const Util = require('./util.js');
-
 class Light{
 	
 	static Colors = {
@@ -72,6 +71,12 @@ class Light{
 		return this.isBlinkingOn() || (this.relayTurnedOn() && this.hasCurrent());
 	}
 
+	
+	isOff()
+	{
+		return !this.isBlinkingOn() && !this.relayTurnedOn() && !this.hasCurrent();
+	}
+
 	isBlinkingOn()
 	{
 		return this.isBlinking;
@@ -90,6 +95,7 @@ class Light{
 
 	on(millis)
 	{
+		if(this.isOn()) return;
 		this.parent.board[this.address] = 1;
 		setTimeout(()=>{
 			this.currentSensor = 1;
@@ -176,6 +182,7 @@ class Light{
 
 	off()
 	{
+		if(this.isOff()) return;
 		this.parent.board[this.address] = 0;
 		this.currentSensor = 0;
 		if(this.offTimeout)
@@ -204,6 +211,17 @@ class Light{
 	{
 		let pre = this.relayTurnedOn() ? this.constructor.ANSI[this.color] : '';
 		return pre + this.color.toUpperCase()+' '+this.icon.toUpperCase()+': '+ (this.isBlinkingOn() ? 'Blinking ' : '') + (this.relayTurnedOn() ? 'ON' : 'OFF') + this.constructor.ANSI['reset'];
+	}
+
+	toJSON()
+	{
+		return {
+			color: this.color
+		,	icon: this.icon
+		,	isBlinking: this.isBlinking
+		,	relayTurnedOn: this.relayTurnedOn()
+		,	currentSensor: this.currentSensor
+		};
 	}
 }
 

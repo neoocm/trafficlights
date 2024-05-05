@@ -7,7 +7,7 @@ class SimpleTrafficLight{
 
 	constructor(name)
 	{
-		this.uuid = uuid.v4();
+		this.id = uuid.v4();
 		this.name = name;
 		this.board = new Array(3).fill(0);
 		let failRate = 0;
@@ -19,24 +19,20 @@ class SimpleTrafficLight{
 		//States podria ser [Light.Icons.DOT, 0, 0] para ir cambiando tambien las formas
 		this.startingTime = 0;
 		this.states = [[1,0,0],[0,1,0],[0,0,1]];
-		this.baseTimes = [5000,1000,5000];
+		this.baseTimes = [1000,500,1000];
 		this.configTimes = null;
 
 		let saved = P.read(name);
 		if(saved)
 		{
+			saved.id && (this.id = saved.id);
 			saved.startingTime && (this.startingTime = saved.startingTime);
 			saved.states && (this.states = saved.states);
 			saved.baseTimes && (this.baseTimes = saved.baseTimes);
 			saved.configTimes && (this.configTimes = saved.configTimes);
 		}
 		else{
-			P.write(this.name, {
-				startingTime: this.startingTime,
-				states: this.states,
-				baseTimes: this.baseTimes,
-				configTimes: this.configTimes
-			});
+			P.write(this.name, this.toJSON());
 		}
 
 		this.currentPeriod = this.getPeriod();
@@ -80,26 +76,103 @@ class SimpleTrafficLight{
 		return this.sumTimes();
 	}
 
-	setTimes(startingTime, times, base)
+	checkApplyCommitted()
 	{
-		if(!Array.isArray(times) || times.length != this.states.length)
+		let data = P.read(this.name);
+		let res = 0;
+		if(data.committed && data.committed.startingTime <= new Date().getTime())
 		{
-			console.error('The times param needs to be an array of same length as the number of states for this traffic light');
-			return null;
-		}
-		for (let i = 0; i<times.length; i++) {
-			if(typeof times[i] != 'number')
+			try{
+				if(data.committed.configTimes)
+				{
+					res = this.setTimes(data.committed.startingTime, data.committed.configTimes, false);
+					if(!res) return 0;
+				}
+				if(data.committed.baseTimes)
+				{
+					res = this.setTimes(data.committed.startingTime, data.committed.baseTimes, true, data.committed.states);
+					if(!res) return 0;
+				}
+				//Read again because setTimes changes the object
+				data = P.read(this.name);
+				delete data.committed;
+				P.write(this.name, data);
+				return 1;
+			}
+			catch(e)
 			{
-				console.error('The times param needs to be an array of integers only');
-				return null;
+				return 0;
 			}
 		}
+	}
+
+	validate(startingTime, times, base, states=null)
+	{
+		if(!(base === true || base === false || base === 0 || base === 1))
+		{
+			console.error('Base must be a boolean');
+			return 0;
+		}
+		if(base)
+		{
+			if(states !== null)
+			{
+				for (let i = 0; i<states.length; i++) {
+					if(states[i].length != this.lights.length)
+					{
+						console.error('All states must have the same number of lights');
+						return 0;
+					}
+				}
+			}
+		}
+		if(base && times === null)
+		{
+			console.error('Base times cannot be null');
+			return 0;
+		}
+		if(times !== null)
+		{
+			if(!Array.isArray(times))
+			{
+				console.error('The times param needs to be an array');
+				return 0;
+			}
+	
+			for (let i = 0; i<times.length; i++) {
+				if(typeof times[i] != 'number')
+				{
+					console.error('The times param needs to be an array of integers only');
+					return 0;
+				}
+			}
+		}
+
 		if(typeof startingTime != 'number' || startingTime<0)
 		{
 			console.error('Starting time must be a positive number');
-			return null;
+			return 0;
+		}
+		
+		return 1;
+	}
+
+	setTimes(startingTime, times, base, states=null)
+	{
+		console.log('Setting', base?'base':'config' , ' times');
+		if (!this.validate(startingTime, times, base))
+		{
+			return 0;
 		}
 
+		if(states)
+		{
+			this.states = states;
+			if(this.currentState >= states.length)
+			{
+				this.currentState = 0;
+			}
+		}
 		if(base)
 		{
 			this.baseTimes = times;
@@ -117,11 +190,12 @@ class SimpleTrafficLight{
 			baseTimes: this.baseTimes,
 			configTimes: this.configTimes
 		});
+		return 1;
 	}
 
 	async powerOnSelfTest()
 	{
-		console.log(`Starting P.O.S.T. for traffic light ${this.uuid}`);
+		console.log(`Starting P.O.S.T. for traffic light ${this.id}`);
 		// Check all lights are OFF
 		for (let i = 0; i<this.lights.length; i++) {
 			let light = this.lights[i];
@@ -178,6 +252,8 @@ class SimpleTrafficLight{
 
 	doCycle()
 	{
+		// Check if there is something to be changed
+		this.checkApplyCommitted()
 		// Align the phase with the starting time to see which state to go next
 		let times = this.getTimeConfig();
 		let now = new Date().getTime();
@@ -232,9 +308,25 @@ class SimpleTrafficLight{
 		{
 			output += this.lights[i].toString() + '\n';
 		}
+		output += this.states.join(' | ') + '\n';
 
 		output += '+--'+'-'.repeat(this.name.length+2)+'--+\n';
 		return output;
+	}
+
+	toJSON()
+	{
+		return {
+			name:this.name
+		,	id: this.id
+		,	baseTimes: this.baseTimes
+		,	configTimes: this.configTimes
+		,	startingTime: this.startingTime
+		,	currentState: this.currentState
+		,	lights: this.lights.map(light => {
+				return light.toJSON();
+			})
+		}
 	}
 
 	drawLights()
