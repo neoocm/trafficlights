@@ -76,16 +76,30 @@ function waitForEntry(){
             console.error(`File ${input}.json not found`);
             var trafficLights = Object.values(trafficLightsData);
             var proposals = trafficLights.map(trafficLight => new Proposal(proposalId, trafficLight, 0, [1000,500,1000], null, null));
+            if(proposals.length)
+            {
+                initiateProposal(proposals);
+            }
         }
         else
         {
             var keys = Object.keys(proposalData);
             var trafficLights = Object.values(trafficLightsData).filter(trafficLight => keys.includes(trafficLight.id));
             var proposals = trafficLights.map(trafficLight => new Proposal(proposalId, trafficLight, proposalData[trafficLight.id].startingTime, proposalData[trafficLight.id].baseTimes, proposalData[trafficLight.id].configTimes, proposalData[trafficLight.id].states));
-        }
+            if(proposals.length == 0)
+            {
+                console.log('None of the traffic lights of the proposal are registered yet')
+            }
+            else if(proposals.length != keys.length)
+            {
+                console.log('Some traffic lights of the proposal are not registered yet')
+            }
+            else
+            {
+                initiateProposal(proposals);
+            }            
 
-        initiateProposal(proposals);
-            
+        }
     });
 }
 
@@ -102,10 +116,10 @@ function initiateProposal(proposals) {
             }, PROPOSAL_TIMEOUT);
         })
     ]).then(() => {
-        console.log(`All traffic lights accepted proposal ${proposals[0].id} !!!`);
+        console.log(`All traffic lights accepted proposal to !!!`,proposals);
         initiateCommit(proposals);
     }).catch(error => {
-        console.error(`Error occurred while sending proposal ${proposals[0].id} :`, error);
+        console.error(`Error occurred while sending proposal to :`, error,proposals);process.exit();
     });
 }
 
@@ -199,9 +213,9 @@ function initiateCommit(proposals) {
             }, COMMIT_TIMEOUT);
         })
     ]).then(() => {
-        console.log(`All traffic lights committed to proposal ${proposals[0].id} !!!`);
+        console.log(`All traffic lights committed to proposal  !!!`,proposals);
     }).catch(error => {
-        console.error(`Error occurred while committing to proposal ${proposals[0].id}:`, error);
+        console.error(`Error occurred while committing to proposal:`, error,proposals);
     });
 }
 

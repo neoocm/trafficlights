@@ -10,10 +10,23 @@ This component represents a single traffic light and you can have many of them b
 *Use Node 20*
 
 $> npm i
-$> node index.js <name> <port>
 
-eg:
+There are 2 services on for the traffic light one for the server that will coordinate them
+
+$> node index.js <name> <port>
+$> node server.js
+
+For example, you can run 2 traffic lights and a server
+
 $> node index.js NORTH 3000
+$> node index.js EAST 3001
+$> node server.js
+
+Then you can check out the node ids that were generated for them (json files will be created)
+And create a proposal for coordinating the traffic lights like the one attached proposal.json
+The server will wait for input, when you enter "proposal" it will read the file proposal.json, and submit the new schedule for all the traffic lights in the corner. After that, the traffic lights will be coordinated.
+If one fails, an error will show up
+
 
 ## Features
 
